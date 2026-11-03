@@ -2,6 +2,7 @@
 """Calcula la salida y la puesta del sol sin depender de ninguna API."""
 
 import argparse
+import json
 import math
 import sys
 import unicodedata
@@ -76,6 +77,12 @@ def calcular_sol(fecha, lat, lon):
     return salida, puesta
 
 
+def formatear_duracion(salida, puesta):
+    """Devuelve la duración entre dos instantes como '12 h 03 min'."""
+    minutos = round((puesta - salida).total_seconds() / 60)
+    return f"{minutos // 60} h {minutos % 60:02d} min"
+
+
 def crear_parser():
     parser = argparse.ArgumentParser(
         description="Muestra la salida y la puesta del sol."
@@ -86,6 +93,7 @@ def crear_parser():
     parser.add_argument("--tz", help="zona horaria IANA, por ejemplo America/Bogota")
     parser.add_argument("--fecha", type=date.fromisoformat, help="AAAA-MM-DD (por defecto, hoy)")
     parser.add_argument("--ciudades", action="store_true", help="lista las ciudades incluidas")
+    parser.add_argument("--json", action="store_true", help="muestra el resultado en JSON")
     return parser
 
 
@@ -119,6 +127,21 @@ def main(argv=None):
         print(f"Error: {error}", file=sys.stderr)
         return 2
 
+    if args.json:
+        datos = {"fecha": fecha.isoformat(), "zona": zona}
+        if isinstance(resultado, str):
+            datos["estado"] = resultado
+        else:
+            salida, puesta = resultado
+            datos.update(
+                estado="normal",
+                salida=salida.astimezone(tz).isoformat(timespec="minutes"),
+                puesta=puesta.astimezone(tz).isoformat(timespec="minutes"),
+                duracion_minutos=round((puesta - salida).total_seconds() / 60),
+            )
+        print(json.dumps(datos, ensure_ascii=False))
+        return 0
+
     if isinstance(resultado, str):
         texto = "El sol no se pone hoy." if resultado == "dia-polar" else "El sol no sale hoy."
         print(f"{fecha}: {texto}")
@@ -128,6 +151,7 @@ def main(argv=None):
     print(f"Fecha:  {fecha} ({zona})")
     print(f"Salida: {salida.astimezone(tz):%H:%M}")
     print(f"Puesta: {puesta.astimezone(tz):%H:%M}")
+    print(f"Luz:    {formatear_duracion(salida, puesta)}")
     return 0
 
 

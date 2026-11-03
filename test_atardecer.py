@@ -1,8 +1,11 @@
+import contextlib
+import io
+import json
 import unittest
-from datetime import date
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from atardecer import CIUDADES, calcular_sol, main, normalizar
+from atardecer import CIUDADES, calcular_sol, formatear_duracion, main, normalizar
 
 
 class PruebasSol(unittest.TestCase):
@@ -46,6 +49,28 @@ class PruebasCLI(unittest.TestCase):
 
     def test_sin_lugar_devuelve_error(self):
         self.assertEqual(main([]), 2)
+
+    def test_formatear_duracion(self):
+        inicio = datetime(2026, 1, 1, 6, 0)
+        self.assertEqual(formatear_duracion(inicio, inicio + timedelta(hours=12, minutes=3)), "12 h 03 min")
+
+    def ejecutar_json(self, *argumentos):
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            self.assertEqual(main([*argumentos, "--json"]), 0)
+        return json.loads(salida.getvalue())
+
+    def test_json_normal(self):
+        datos = self.ejecutar_json("bogota", "--fecha", "2026-11-03")
+        self.assertEqual(datos["estado"], "normal")
+        self.assertEqual(datos["zona"], "America/Bogota")
+        self.assertAlmostEqual(datos["duracion_minutos"], 717, delta=5)
+        self.assertTrue(datos["salida"].startswith("2026-11-03T05:"))
+
+    def test_json_dia_polar(self):
+        datos = self.ejecutar_json("--lat", "78.2", "--lon", "15.6", "--fecha", "2026-06-21")
+        self.assertEqual(datos["estado"], "dia-polar")
+        self.assertNotIn("salida", datos)
 
     def test_ciudad_valida(self):
         self.assertEqual(main(["bogota", "--fecha", "2026-11-03"]), 0)
